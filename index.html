@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markforged 保守プラン ROIシミュレーター</title>
+<style>
+  :root{
+    --primary:#333;
+    --accent:#e60012;
+    --blue:#0056b3;
+    --green:#28a745;
+    --green-dark:#1a7d3c;
+    --joined-bg:#e7f3ff;
+    --unjoined-bg:#fff0f0;
+    --gray:#f8f9fa;
+    --border:#ddd;
+    --warn-bg:#fff4f4;
+    --warn-border:#e60012;
+  }
+  *{box-sizing:border-box;}
+  .mf-roi{
+    max-width:820px;
+    margin:20px auto;
+    padding:30px;
+    border:1px solid var(--border);
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    color:var(--primary);
+    line-height:1.6;
+  }
+  .mf-title{text-align:center;margin:0 0 6px;font-size:1.5rem;}
+  .mf-sub{
+    text-align:center;font-size:0.8rem;color:#888;
+    margin-bottom:24px;padding-bottom:14px;border-bottom:3px solid var(--accent);
+  }
+  .input-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:16px;
+    background:var(--gray);padding:20px;border-radius:8px;margin-bottom:26px;
+  }
+  .input-item{display:flex;flex-direction:column;}
+  .input-item.full{grid-column:1 / -1;}
+  .input-item label{font-weight:bold;font-size:0.85rem;margin-bottom:6px;}
+  .input-item .hint{font-weight:normal;color:#999;font-size:0.72rem;}
+  .input-item .ref{font-weight:normal;color:var(--green-dark);font-size:0.72rem;margin-top:5px;}
+  select,input{
+    padding:11px;border:1px solid #ccc;border-radius:6px;font-size:1rem;width:100%;
+  }
+  input[type="number"]{text-align:right;}
+  select:focus,input:focus{border-color:var(--blue);outline:none;}
+
+  .result-flex{display:flex;gap:16px;margin-bottom:26px;}
+  .res-card{flex:1;padding:20px;border-radius:10px;text-align:center;}
+  .res-unjoined{background:var(--unjoined-bg);border:2px solid #dc3545;}
+  .res-joined{background:var(--joined-bg);border:2px solid #007bff;position:relative;}
+  .res-joined::after{
+    content:"推奨";position:absolute;top:-12px;left:50%;
+    transform:translateX(-50%);background:var(--blue);color:#fff;
+    padding:2px 16px;border-radius:20px;font-size:0.72rem;
+  }
+  .res-title{font-size:0.85rem;font-weight:bold;margin-bottom:8px;display:block;}
+  .res-val{font-size:1.55rem;font-weight:bold;color:var(--primary);}
+  .res-val small{font-size:0.75rem;font-weight:normal;}
+  .res-detail{font-size:0.7rem;color:#666;margin-top:8px;text-align:left;line-height:1.5;}
+
+  /* --- 収支パネル（得するとき派手に） --- */
+  .save-panel{
+    border-radius:12px;padding:26px;text-align:center;margin-bottom:26px;
+    transition:all .2s;
+  }
+  .save-panel.win{
+    background:linear-gradient(135deg,#28a745 0%,#1a7d3c 100%);
+    color:#fff;box-shadow:0 8px 22px rgba(40,167,69,0.35);
+    border:3px solid #148a3c;
+  }
+  .save-panel.lose{
+    background:#fff9c4;border:2px dashed #fbc02d;color:var(--primary);
+  }
+  .save-badge{
+    display:inline-block;background:#fff;color:var(--green-dark);
+    font-weight:bold;font-size:0.85rem;padding:4px 18px;border-radius:20px;
+    margin-bottom:10px;letter-spacing:1px;
+  }
+  .save-label{font-size:1.05rem;font-weight:bold;margin-bottom:2px;}
+  .save-val{font-size:3rem;font-weight:900;line-height:1.1;}
+  .save-val small{font-size:1rem;font-weight:bold;}
+  .save-note{font-size:0.8rem;margin-top:8px;opacity:0.95;}
+  .save-panel.lose .save-note{color:#555;text-align:left;line-height:1.7;margin-top:12px;}
+  .save-panel.lose .save-label{color:#8a6d00;}
+  .save-panel.lose .save-val{color:var(--accent);font-size:2.4rem;}
+
+  /* --- サービス内容アピール --- */
+  .benefit-box{
+    background:linear-gradient(135deg,#eafaf1 0%,#e7f3ff 100%);
+    border:2px solid var(--green);border-radius:12px;padding:24px;margin-bottom:10px;
+  }
+  .benefit-title{
+    text-align:center;font-size:1.15rem;font-weight:bold;color:var(--green-dark);
+    margin-bottom:4px;
+  }
+  .benefit-sub{text-align:center;font-size:0.78rem;color:#666;margin-bottom:18px;}
+
+  /* 高額パーツカード（安心サポート欄内） */
+  .part-guard{
+    background:#fff;border:2px solid var(--warn-border);border-radius:10px;
+    padding:16px 18px;margin-bottom:16px;
+  }
+  .part-guard-head{
+    font-size:0.85rem;font-weight:bold;color:var(--accent);
+    margin-bottom:12px;display:flex;align-items:center;gap:6px;
+  }
+  .part-guard-head small{font-weight:normal;color:#999;font-size:0.72rem;}
+  .part-guard-grid{display:flex;gap:14px;}
+  .part-item{
+    flex:1;background:var(--warn-bg);border-radius:8px;
+    padding:12px 14px;text-align:center;
+  }
+  .part-item.dim{opacity:0.55;}
+  .part-cat{font-size:0.75rem;font-weight:bold;color:#555;margin-bottom:2px;}
+  .part-name{font-size:0.66rem;color:#888;margin-bottom:6px;min-height:2.2em;line-height:1.3;}
+  .part-price{font-size:1.5rem;font-weight:bold;color:var(--accent);white-space:nowrap;}
+  .part-price small{font-size:0.66rem;font-weight:normal;color:#888;}
+  .part-guard-note{
+    font-size:0.72rem;color:var(--green-dark);font-weight:bold;
+    margin-top:10px;text-align:center;
+  }
+  @media (max-width:620px){ .part-guard-grid{flex-direction:column;} }
+
+  .benefit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  .benefit-item{
+    background:#fff;border-radius:8px;padding:14px 16px;
+    display:flex;gap:12px;align-items:flex-start;
+    box-shadow:0 2px 5px rgba(0,0,0,0.05);
+  }
+  .benefit-item.highlight{border:2px solid var(--green);}
+  .benefit-item.adv{border:2px solid var(--blue);background:#f5f9ff;}
+  .benefit-item.wide{grid-column:1 / -1;}
+  .benefit-ico{font-size:1.5rem;line-height:1.2;flex-shrink:0;}
+  .benefit-txt b{display:block;font-size:0.9rem;margin-bottom:2px;}
+  .benefit-txt span{font-size:0.74rem;color:#666;line-height:1.5;}
+  .adv-badge{
+    display:inline-block;background:var(--blue);color:#fff;font-size:0.62rem;
+    font-weight:bold;padding:1px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;
+  }
+  @media (max-width:620px){ .benefit-grid{grid-template-columns:1fr;} }
+
+  .note{font-size:0.72rem;color:#666;margin-top:18px;line-height:1.7;text-align:left;}
+  @media (max-width:620px){
+    .input-grid{grid-template-columns:1fr;}
+    .result-flex{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<div class="mf-roi">
+  <h2 class="mf-title">Markforged 保守プラン ROIシミュレーター</h2>
+  <div class="mf-sub">サービス&ソフトウェア・プラン 加入 vs 未加入 コスト比較（税抜）</div>
+
+  <div class="input-grid">
+    <div class="input-item">
+      <label>対象機種</label>
+      <select id="model" onchange="calc()">
+        <option value="onyxone">Onyx One</option>
+        <option value="onyxpro">Onyx Pro</option>
+        <option value="marktwo" selected>Mark Two</option>
+        <option value="x3">X3</option>
+        <option value="x5">X5</option>
+        <option value="x7">X7</option>
+        <option value="fx10">FX10</option>
+        <option value="fx20">FX20</option>
+      </select>
+    </div>
+    <div class="input-item">
+      <label>保守ティア</label>
+      <select id="tier" onchange="calc()">
+        <option value="essential" selected>Essential</option>
+        <option value="advanced">Advanced</option>
+        <option value="onprem">On-Prem</option>
+      </select>
+    </div>
+    <div class="input-item">
+      <label>契約期間</label>
+      <select id="period" onchange="calc()">
+        <option value="1">1年契約</option>
+        <option value="3" selected>3年契約（15%OFF / 材料10%OFF）</option>
+      </select>
+    </div>
+    <div class="input-item">
+      <label>年間Onyx使用量 <span class="hint">(800ccスプール数)</span></label>
+      <input type="number" id="onyx" value="20" min="0" oninput="calc()">
+      <span class="ref">(参考) 稼働率30%程度 → Onyx 約20スプール/年</span>
+    </div>
+  </div>
+
+  <div class="result-flex">
+    <div class="res-card res-unjoined">
+      <span class="res-title">保守プラン未加入時（年額）</span>
+      <div class="res-val">¥<span id="val-unjoined">0</span></div>
+      <div class="res-detail" id="detail-unjoined"></div>
+    </div>
+    <div class="res-card res-joined">
+      <span class="res-title">保守プラン加入時（年額）</span>
+      <div class="res-val">¥<span id="val-joined">0</span></div>
+      <div class="res-detail" id="detail-joined"></div>
+    </div>
+  </div>
+
+  <!-- 収支パネル（得するとき派手に光る） -->
+  <div class="save-panel win" id="save-panel">
+    <div class="save-badge" id="save-badge">🎉 加入した方がお得！</div>
+    <div class="save-label" id="save-label">保守加入時</div>
+    <div class="save-val"><span id="save-val">0</span><small> /年</small></div>
+    <div class="save-note" id="save-note"></div>
+  </div>
+
+  <!-- サービス内容アピール -->
+  <div class="benefit-box">
+    <div class="benefit-title">💡 金額だけじゃない、保守プランの安心サポート</div>
+    <div class="benefit-sub">コスト削減以上に、止まらない生産体制を支えるサービスが含まれます</div>
+
+    <!-- 高額パーツ（ヘッド＆造形テーブル）を安心サポート欄に表示 -->
+    <div class="part-guard">
+      <div class="part-guard-head">⚠️ 故障すると高額な主要パーツも「無償交換」の対象 <small>（一部抜粋）</small></div>
+      <div class="part-guard-grid">
+        <div class="part-item" id="part-head">
+          <div class="part-cat">プリントヘッド</div>
+          <div class="part-name" id="part-head-name"></div>
+          <div class="part-price">¥<span id="part-head-price">0</span><small> /個</small></div>
+        </div>
+        <div class="part-item" id="part-bed">
+          <div class="part-cat">造形テーブル</div>
+          <div class="part-name" id="part-bed-name"></div>
+          <div class="part-price">¥<span id="part-bed-price">0</span><small> /枚</small></div>
+        </div>
+      </div>
+      <div class="part-guard-note" id="part-guard-note">
+        👉 未加入なら丸ごと自己負担。加入していれば故障・偶発損傷でも無償交換に。
+      </div>
+    </div>
+
+    <div class="benefit-grid" id="benefit-grid">
+      <div class="benefit-item wide highlight">
+        <div class="benefit-ico">⚡</div>
+        <div class="benefit-txt">
+          <b>連絡するだけで即発送 ― 現場担当者だけで完結</b>
+          <span>保守加入中は、必要な部品を連絡いただければすぐに発送。通常は見積りのやり取りや発注手続きが必要ですが、加入していれば見積り不要・その場で手配完了。現場の担当者だけで交換まで完結でき、ダウンタイムを最小化します。<br>※弊社在庫／メーカー在庫によって納期は変動します。</span>
+        </div>
+      </div>
+      <div class="benefit-item highlight">
+        <div class="benefit-ico">📦</div>
+        <div class="benefit-txt">
+          <b>センドバックメンテナンス</b>
+          <span>Markforged技術員がプリンタを整備。ユーザーは送料のみ負担で本格メンテが受けられます（※FXシリーズは別途相談）。</span>
+        </div>
+      </div>
+      <div class="benefit-item highlight">
+        <div class="benefit-ico">🎧</div>
+        <div class="benefit-txt">
+          <b>専用サポートデスクへのアクセス</b>
+          <span>技術・不具合の問い合わせ窓口に直接アクセス可能。トラブル時の復旧を強力にバックアップします。</span>
+        </div>
+      </div>
+
+      <!-- Advanced限定機能（tierがAdvanced/On-Premのとき表示） -->
+      <div class="benefit-item adv" id="adv-sim" style="display:none;">
+        <div class="benefit-ico">🧪</div>
+        <div class="benefit-txt">
+          <b>強度シミュレーション<span class="adv-badge">Advanced</span></b>
+          <span>造形前に部品の強度・たわみを解析。試作前に設計の妥当性を検証でき、失敗プリントと材料ロスを削減します。</span>
+        </div>
+      </div>
+      <div class="benefit-item adv" id="adv-inspect" style="display:none;">
+        <div class="benefit-ico">🔬</div>
+        <div class="benefit-txt">
+          <b>検査・測定機能<span class="adv-badge">Advanced</span></b>
+          <span>造形物の寸法検査・測定に対応。品質保証が必要な現場での寸法トレーサビリティを確保します（X7 / FX10 のみ）。</span>
+        </div>
+      </div>
+
+      <div class="benefit-item">
+        <div class="benefit-ico">🚚</div>
+        <div class="benefit-txt">
+          <b>配送料も無償</b>
+          <span>材料・スペアパーツ注文時の送料が無償に。未加入時は1発送あたり¥1,350の送料が都度発生します。</span>
+        </div>
+      </div>
+      <div class="benefit-item">
+        <div class="benefit-ico">📚</div>
+        <div class="benefit-txt">
+          <b>最新資料・マニュアルのダウンロード</b>
+          <span>最新のマニュアルやよくある質問集にアクセスでき、社内での自己解決もスムーズに。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    ※全ての金額は定価／税抜きです。<br>
+    ※<strong>消耗品費は自動算出</strong>：Onyx 4本使用ごとに、Bowden Tube・Load Tube・Nozzle（プラスチック／ファイバー 各1本）を交換する前提で計算（機種別の実単価を使用）。Onyx One・X3 はファイバー非対応のためプラスチックのみ。<br>
+    ※<strong>3年契約時のみ</strong>、Onyx材料の10%割引分（¥37,000/本 基準）を加入メリットに加算しています。<br>
+    ※<strong>プリントヘッド・造形テーブルは故障時の実費</strong>で、上記の年間コストには含めていません。加入時はこれら高額パーツも無償交換のため、実運用でのメリットはさらに大きくなります。<br>
+    ※造形テーブルはOnyx One〜X7が対象です（FX10/FX20はプリントヘッドや造形テーブルの構成が異なるため個別に相談）。<br>
+    ※強度シミュレーション・検査測定は Advanced のプランに含まれます（検査測定は X7 / FX10 のみ）。
+  </div>
+</div>
+
+<script>
+function calc(){
+  /* === 機種別データ（税抜・データ・デザイン価格表2025.08） ===
+     Fiber系は非対応機種（Onyx One / X3）では null
+     printhead が null の機種は「要問合せ」表示 */
+  const MACHINE = {
+    onyxone: {label:"Onyx One", bowden:6400,  load:2667, nozzle:4000,  fiberBowden:null,  fiberLoad:null,  fiberNozzle:null,  printhead:null,    phName:"—（要問合せ）",                          printbed:48000,   pbName:"Desktop 造形テーブル"},
+    onyxpro: {label:"Onyx Pro", bowden:6400,  load:2667, nozzle:4000,  fiberBowden:14400, fiberLoad:11200, fiberNozzle:4000,  printhead:248000,  phName:"Onyx Pro Print Head",                    printbed:48000,   pbName:"Desktop 造形テーブル"},
+    marktwo: {label:"Mark Two", bowden:6400,  load:2667, nozzle:4000,  fiberBowden:14400, fiberLoad:11200, fiberNozzle:4000,  printhead:252800,  phName:"MarkTwo Print Head",                     printbed:48000,   pbName:"Desktop 造形テーブル"},
+    x3:      {label:"X3",       bowden:9600,  load:5333, nozzle:4000,  fiberBowden:null,  fiberLoad:null,  fiberNozzle:null,  printhead:null,    phName:"—（要問合せ）",                          printbed:80000,   pbName:"Industrial 造形テーブル"},
+    x5:      {label:"X5",       bowden:9600,  load:5333, nozzle:4000,  fiberBowden:11200, fiberLoad:6400,  fiberNozzle:4000,  printhead:1056000, phName:"X5 and X7 Print Head",                   printbed:80000,   pbName:"Industrial 造形テーブル"},
+    x7:      {label:"X7",       bowden:9600,  load:5333, nozzle:4000,  fiberBowden:11200, fiberLoad:6400,  fiberNozzle:4000,  printhead:1056000, phName:"X5 and X7 Print Head",                   printbed:80000,   pbName:"Industrial 造形テーブル"},
+    fx10:    {label:"FX10",     bowden:23730, load:6300, nozzle:35700, fiberBowden:45150, fiberLoad:22260, fiberNozzle:59850, printhead:1512000, phName:"FX10 Composite CFR Print Head（Laser別）",printbed:null,    pbName:"個別相談"},
+    fx20:    {label:"FX20",     bowden:10500, load:4200, nozzle:60900, fiberBowden:35700, fiberLoad:22260, fiberNozzle:60900, printhead:1388100, phName:"FX20 Print Head Backplane（モジュール別）",printbed:null,    pbName:"個別相談"}
+  };
+
+  /* === 保守費用テーブル（税抜・1台）[tier] = {1年契約年額, 3年契約総額} === */
+  const PLAN = {
+    onyxone: {essential:{"1":124800,"3":318240},  advanced:{"1":604800,"3":1542240},  onprem:{"1":924800,"3":2358240}},
+    onyxpro: {essential:{"1":192000,"3":489600},  advanced:{"1":672000,"3":1713600},  onprem:{"1":992000,"3":2529600}},
+    marktwo: {essential:{"1":384000,"3":979200},  advanced:{"1":864000,"3":2203200},  onprem:{"1":1184000,"3":3019200}},
+    x3:      {essential:{"1":864000,"3":2203200}, advanced:{"1":1344000,"3":3427200}, onprem:{"1":1664000,"3":4243200}},
+    x5:      {essential:{"1":1056000,"3":2692800},advanced:{"1":1536000,"3":3916800}, onprem:{"1":1856000,"3":4732800}},
+    x7:      {essential:{"1":1497600,"3":3818880},advanced:{"1":1977600,"3":5042880}, onprem:{"1":2297600,"3":5858880}},
+    fx10:    {essential:{"1":2376000,"3":6058800},advanced:{"1":2856000,"3":7282800}, onprem:{"1":3176000,"3":8098800}},
+    fx20:    {essential:{"1":4606800,"3":11747340},advanced:{"1":5086800,"3":12971340},onprem:{"1":5406800,"3":13787340}}
+  };
+
+  const ONYX_UNIT = 37000;    // Onyx 800cc 単価（税抜・材料10%割引の基準）
+  const SHIP_UNIT = 1350;     // 未加入時 送料/発送物 1点あたり（税抜）
+
+  /* === 入力値取得 === */
+  const model  = document.getElementById('model').value;
+  const tier   = document.getElementById('tier').value;
+  const period = document.getElementById('period').value;
+  const onyxQty  = parseFloat(document.getElementById('onyx').value) || 0;
+
+  const m = MACHINE[model];
+  const hasFiber = (m.fiberNozzle != null);
+
+  /* === 消耗品費の自動算出（Onyx4本ごとに交換） ===
+     プラスチック：Bowden+Load+Nozzle
+     ファイバー：対応機種のみ Bowden+Load+Nozzle を追加 */
+  const sets = onyxQty / 4;
+  let setCost = m.bowden + m.load + m.nozzle;
+  if (hasFiber) setCost += m.fiberBowden + m.fiberLoad + m.fiberNozzle;
+  const consumables = sets * setCost;
+
+  /* === 送料の自動算出 ===
+     Onyx 1本ごとに ¥1,350、Onyx 4本到達ごとに消耗パーツ分（点数×¥1,350） */
+  const partsPerSet = hasFiber ? 6 : 3;      // 交換パーツ点数/セット
+  const partItems = sets * partsPerSet;
+  const shipping = (onyxQty + partItems) * SHIP_UNIT;
+
+  /* === 保守費用（年額換算） === */
+  const planTotal = PLAN[model][tier][period];
+  const planYearly = (period === "3") ? planTotal / 3 : planTotal;
+
+  /* === 3年契約時のみ：Onyx材料10%割引分を加入メリットに加算 === */
+  const matDiscount = (period === "3") ? (ONYX_UNIT * onyxQty * 0.1) : 0;
+
+  /* === 合計 ===
+     未加入：消耗品 + 送料
+     加入：保守費用（材料は購入額が同じため相殺、10%割引分のみメリットに反映） */
+  const totalUnjoined = consumables + shipping;
+  const totalJoined = planYearly;
+  const saving = totalUnjoined - totalJoined + matDiscount;  // プラス=お得
+
+  /* === 高額パーツ（安心サポート欄） === */
+  const headCard = document.getElementById('part-head');
+  const bedCard  = document.getElementById('part-bed');
+
+  if (m.printhead){
+    document.getElementById('part-head-price').innerText = m.printhead.toLocaleString();
+    headCard.classList.remove('dim');
+  } else {
+    document.getElementById('part-head-price').innerText = "—";
+    headCard.classList.add('dim');
+  }
+  document.getElementById('part-head-name').innerText = m.phName;
+
+  if (m.printbed){
+    document.getElementById('part-bed-price').innerText = m.printbed.toLocaleString();
+    bedCard.classList.remove('dim');
+  } else {
+    document.getElementById('part-bed-price').innerText = "—";
+    bedCard.classList.add('dim');
+  }
+  document.getElementById('part-bed-name').innerText = m.pbName;
+
+  /* === Advanced限定機能の表示制御 === */
+  const isAdv = (tier === "advanced" || tier === "onprem");
+  const hasInspect = (model === "x7" || model === "fx10");
+  document.getElementById('adv-sim').style.display     = isAdv ? "flex" : "none";
+  document.getElementById('adv-inspect').style.display = (isAdv && hasInspect) ? "flex" : "none";
+
+  /* === コスト内訳の反映 === */
+  document.getElementById('val-unjoined').innerText = Math.round(totalUnjoined).toLocaleString();
+  document.getElementById('val-joined').innerText   = Math.round(totalJoined).toLocaleString();
+
+  document.getElementById('detail-unjoined').innerHTML =
+    "・消耗品：¥" + Math.round(consumables).toLocaleString() +
+      "<br>&nbsp;&nbsp;(交換 " + (sets).toFixed(1) + "セット × ¥" + setCost.toLocaleString() + ")<br>" +
+    "・送料：¥" + Math.round(shipping).toLocaleString() +
+      "<br>&nbsp;&nbsp;(Onyx " + onyxQty + "本 + パーツ " + partItems.toFixed(1) + "点) × ¥" + SHIP_UNIT.toLocaleString() + "<br>" +
+    "・故障時パーツ代：別途実費";
+
+  let joinedHTML =
+    "・保守費用：¥" + Math.round(planYearly).toLocaleString() + (period==="3" ? "（年額換算）":"") + "<br>";
+  if (matDiscount > 0){
+    joinedHTML += "・Onyx材料10%割引：<span style='color:#1a7d3c;font-weight:bold;'>+¥" + Math.round(matDiscount).toLocaleString() + " お得</span><br>";
+  }
+  joinedHTML += "・消耗品/送料：無償<br>・部品交換：無償";
+  document.getElementById('detail-joined').innerHTML = joinedHTML;
+
+  /* === 収支パネル（保守加入時 ＋/－ 表記） === */
+  const panel = document.getElementById('save-panel');
+  const badge = document.getElementById('save-badge');
+  const label = document.getElementById('save-label');
+  const valEl = document.getElementById('save-val');
+  const noteEl= document.getElementById('save-note');
+
+  const absVal = Math.round(Math.abs(saving)).toLocaleString();
+
+  if (saving >= 0){
+    // 得するケース → 派手に、＋表記
+    panel.classList.remove('lose'); panel.classList.add('win');
+    badge.style.display = "inline-block";
+    label.innerText = "保守加入時";
+    valEl.innerText = "＋¥" + absVal;
+    noteEl.innerText = "年間これだけお得！ さらに故障時の高額パーツ代（上部参照）も無償で、実際のメリットはもっと大きくなります。";
+  } else {
+    // 未加入の方が安いケース → －表記、保険価値で訴求
+    panel.classList.remove('win'); panel.classList.add('lose');
+    badge.style.display = "none";
+    label.innerText = "保守加入時";
+    valEl.innerText = "－¥" + absVal;
+    const ph = m.printhead ? "¥" + m.printhead.toLocaleString() : "高額パーツ";
+    noteEl.innerHTML =
+      "費用だけを見ると年間 ¥" + absVal + " 割高になります。<br>" +
+      "ただし " + m.label + " のプリントヘッドは1回の交換で " + ph + "。<strong>たった1度の故障で差額は簡単に逆転</strong>します。<br>" +
+      "しかも <strong>連絡だけで即発送</strong>・<strong>専用サポートデスク</strong>・<strong>センドバックメンテ</strong> まで全て無料。“保険”として十分な価値があります。";
+  }
+}
+
+/* 初回実行 */
+calc();
+</script>
+
+</body>
+</html>
